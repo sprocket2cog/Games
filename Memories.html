@@ -48,7 +48,11 @@ body.demo #demoTag{display:block}
 body.cust #hud{z-index:40;display:block}
 body.cust #hud>*:not(#fire):not(#steer){visibility:hidden}
 .csel{outline:2px dashed #ffcf3a;outline-offset:5px}
-#pcHint{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);display:none;font-size:13px;letter-spacing:.14em;color:#7dffa8;background:rgba(2,14,8,.85);border:1px solid #1a7a3c;padding:8px 14px;border-radius:4px;text-align:center;line-height:1.6;white-space:nowrap}
+#mana{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);width:min(300px,36vw);height:14px;border:2px solid #43e87a;border-radius:8px;background:rgba(2,14,8,.75);overflow:hidden;box-shadow:0 0 10px rgba(67,232,122,.3)}
+#manaF{height:100%;width:100%;background:linear-gradient(90deg,#1fa8ff,#7dffe0)}
+#mana.lock{border-color:#ff3a3a}#mana.lock #manaF{background:#ff4a3a}
+body.demo #mana{display:none}
+#pcHint{position:absolute;bottom:40px;left:50%;transform:translateX(-50%);display:none;font-size:13px;letter-spacing:.14em;color:#7dffa8;background:rgba(2,14,8,.85);border:1px solid #1a7a3c;padding:8px 14px;border-radius:4px;text-align:center;line-height:1.6;white-space:nowrap}
 body.locked #fire,body.locked #steer{display:none}
 #sTap .t{font-size:clamp(18px,4.6vw,32px);letter-spacing:.35em;color:#7dffa8;text-shadow:0 0 16px rgba(67,232,122,.7);animation:blink 1.4s steps(2) infinite}
 @keyframes blink{50%{opacity:.12}}
@@ -102,6 +106,7 @@ h3.hd{margin:0 0 8px;font-size:clamp(15px,3.6vw,24px);letter-spacing:.35em;color
   <div id="steer"><div class="st" id="sL"></div><div class="st" id="sR"></div></div>
   <div id="pop"></div>
   <div id="hint">FORK AHEAD // PAN TO A SIDE</div>
+  <div id="mana"><div id="manaF"></div></div>
   <div id="pcHint">CLICK TO CAPTURE MOUSE<br>MOUSE = LOOK // LEFT CLICK / SPACE = FIRE // A D OR ARROWS = STEER // ESC OR P = PAUSE</div>
   <div id="demoTag">DEMO // TOUCH TO START</div>
 </div>
@@ -1047,6 +1052,11 @@ function updateIdle(){
 /* ================= camera / world state ================= */
 const cam={d:40,x:0,y:2,yaw:0,pitch:0};
 let lookYaw=0,lookPitch=0,liveK=-1e9;
+let ledgeMode=0,ledgeT=0,introHold=false;const LSPD=60,LSOFT=40;
+function ledgeL(dd){if(ledgeMode===1)return 1;if(ledgeMode===2)return 1-sstep(0,1,(LSPD*ledgeT-dd)/LSOFT);if(ledgeMode===3)return sstep(0,1,(LSPD*ledgeT-dd)/LSOFT);return 0;}
+function wEff(w,L){const o=[w[0]||0,w[1]||0,w[2]||0,w[3]||0,w[4]||0,w[5]||0];if(L<=0)return o;return o.map((v,i)=>i===4?v*(1-L)+L:v*(1-L));}
+let manaOn=false,mana=1,manaLock=false,manaLast=-9,manaTouch=-9;const MANA_COST=.17/5;
+function ledgeHides(d){return ledgeMode!==0&&ledgeL(d-cam.d)>.35;}
 const soulGone=new Set(),soulsLive=[],soulEyes=[];const emitters=[];const meteors=[];let starI=0,lastStarT=0;
 function spawnMeteor(){const th=cam.yaw+(Math.random()-.5)*2.4,R=380+Math.random()*220,e=.22+Math.random()*.4,sg=Math.random()<.5?-1:1;
   meteors.push({x:R*Math.cos(e)*Math.sin(th),y:R*Math.sin(e),z:-R*Math.cos(e)*Math.cos(th),vx:sg*Math.cos(th)*(380+Math.random()*200),vy:-(110+Math.random()*120),vz:sg*Math.sin(th)*(380+Math.random()*200),life:1+Math.random()*.7,l0:0});meteors[meteors.length-1].l0=meteors[meteors.length-1].life;}
@@ -1074,9 +1084,14 @@ function writeSlices(){
       setSlice(k,cl(a3(F.B)*S.gBass),cl(a3(F.M)*S.gMid),cl(a3(F.T)*S.gTre),samp(F.E,fi),samp(F.WR,fi),samp(F.WG,fi),samp(F.WY,fi),samp(F.WB,fi),samp(F.Ms,fi),samp(F.WL,fi),samp(F.WP,fi));
     }
   }else if(running){
-    const w=live.w;
+    if(ledgeMode===2||ledgeMode===3){
+      for(let k=kb;k<=kf;k++){const w=wEff(live.w,ledgeL(k*SL-cam.d));setSlice(k,live.b,live.m,live.t,live.e,w[0],w[1],w[2],w[3],live.ms,w[4],w[5]);}
+      liveK=kf;
+    }else{
+    const w=wEff(live.w,ledgeMode===1?1:0);
     if(liveK<kb-5||liveK>kf+60){for(let k=kb;k<=kf;k++)setSlice(k,live.b,live.m,live.t,live.e,w[0],w[1],w[2],w[3],live.ms,w[4],w[5]);liveK=kf;}
     else while(liveK<kf){liveK++;setSlice(liveK,live.b,live.m,live.t,live.e,w[0],w[1],w[2],w[3],live.ms,w[4],w[5]);}
+    }
   }else{
     for(let k=kb;k<=kf;k++)setSlice(k,.3+.2*Math.sin(k*.15),.35,.3,.4,0,0,0,0,.4);
   }
@@ -1110,6 +1125,7 @@ function updateCamera(dt){
 function h2(a,b,s){let h=Math.imul(a|0,374761393)+Math.imul(b|0,668265263)+Math.imul(s|0,1597334677);h=Math.imul(h^(h>>>13),1274126177);h^=h>>>16;return(h>>>0)/4294967296;}
 
 function spawnFragAt(d){
+  if(ledgeHides(d))return;
   if(Math.abs(d-lastFragD)<3.5)return;lastFragD=d;
   const c=pathCJ(d,hist8(3,d*.25,0)),s=pathSJ(d),side=Math.random()<.5?-1:1,x=c+side*s+(Math.random()-.5)*7;
   frags.push({x,y:groundH(x,d)+2.2+Math.random()*4.5,d,seed:Math.random()});fragTotal++;
@@ -1117,7 +1133,7 @@ function spawnFragAt(d){
 let steadyNext=-1;
 function spawnLogic(dt){
   const spawnDist=Math.min(S.fog*.85,320);
-  if(running&&!paused){
+  if(running&&!paused&&!introHold){
     if(S.fragD>0){
       if(steadyNext<cam.d||steadyNext>cam.d+spawnDist+400)steadyNext=cam.d+25;
       const gap=16/Math.max(.15,S.fragD);
@@ -1138,6 +1154,7 @@ function spawnLogic(dt){
     }else if(liveBeat){if(Math.random()<S.meteor)spawnMeteor();if(Math.random()<.25*Math.min(1,S.fragD))spawnFragAt(cam.d+spawnDist);}
   }
   liveBeat=false;
+  if(ledgeMode===3||ledgeMode===1)for(let i=frags.length-1;i>=0;i--)if(ledgeHides(frags[i].d))frags.splice(i,1);
   if(!paused)for(let q=0;q<emitters.length;q+=5){
     if(emitters[q+4]===6||emitters[q+4]===9){let n=60*dt;n=Math.floor(n)+(Math.random()<n%1?1:0);
       for(let j=0;j<n;j++){const a=Math.random()*6.283,rr=Math.random()*emitters[q+3]*.12;
@@ -1179,7 +1196,7 @@ function updateDebris(dt){
 }
 const soulRise=new Map();
 function addSoul(id,x,d,sd,tt){
-  if(soulGone.has(id))return;
+  if(soulGone.has(id)||ledgeHides(d))return;
   const cx=cam.x,cy=cam.y,cD=cam.d,far=S.fog;
   const g=cl(1-((d-cD)-22)/Math.max(50,far*.75-22)),h=(3.5+7.5*g)*S.soulScale;
   let yb=floorYJ(d)+1.3+Math.sin(tt*.8+sd*6.28)*.55+Math.sin(tt*.53+sd*3)*.25,fade=1,rising=false;
@@ -1308,6 +1325,11 @@ function updateBolts(dt){
 }
 function fire(){
   if(!running||paused)return;
+  if(manaOn){manaTouch=U.time;
+    if(!manaLock&&mana<MANA_COST)manaLock=true;
+    if(manaLock){if(U.time-manaLast<.5)return;manaLast=U.time;}
+    else{mana-=MANA_COST;manaLast=U.time;if(mana<MANA_COST)manaLock=true;}
+  }
   const bs=basis(cam.yaw+lookYaw,cam.pitch+lookPitch),f=bs.f;
   let aim=[f[0],f[1],-f[2]],best=S.assist*Math.PI/180;
   for(const fr of frags){
@@ -1420,7 +1442,7 @@ function buildObjects(){
   }
   /* souls: hooded wireframe ghosts that grow from pale green to white as you near them */
   soulsLive.length=0;soulEyes.length=0;drawFly();
-  if(S.soulD>0){const SG=S.soulGap,n0=Math.floor((cD-12)/SG),n1=Math.floor((cD+far*.95)/SG),tt=U.time;
+  if(S.soulD>0&&!introHold){const SG=S.soulGap,n0=Math.floor((cD-12)/SG),n1=Math.floor((cD+far*.95)/SG),tt=U.time;
    for(let n=n0;n<=n1;n++){
     if(h2(n,0,61)>S.soulD||soulGone.has(n))continue;
     const sd=h2(n,0,62),d=n*SG+sd*SG+Math.sin(tt*.3+sd*6.28)*1.5;
@@ -1430,10 +1452,11 @@ function buildObjects(){
    }}
   /* gates */
   gatesLive.length=0;
-  {const GP=S.gateGap,n0=Math.floor((cD-6)/GP),n1=Math.floor((cD+far)/GP);
+  {const GP=S.gateGap,n0=Math.floor((cD-6)/GP),n1=introHold?-1e9:Math.floor((cD+far)/GP);
    for(let n=n0;n<=n1;n++){
     if(h2(n,0,21)>.85)continue;
     const d=n*GP+h2(n,0,22)*GP*.4;if(d-cD<-6||d-cD>far*.95)continue;
+    if(ledgeHides(d))continue;
     const u=d*.25,mH=hist8(3,u,0),c=pathCJ(d,mH),s=pathSJ(d),side=h2(n,0,23)<.5?-1:1,x=c+side*s;
     const psi=Math.atan2(branchX(d+8)-branchX(d-8),16)*0+Math.atan2((pathCJ(d+8,hist8(3,(d+8)*.25,0))+side*pathSJ(d+8))-(pathCJ(d-8,hist8(3,(d-8)*.25,0))+side*pathSJ(d-8)),16);
     const sc=(4.5+4*hist8(0,u,0))*S.gateScale;
@@ -1669,14 +1692,24 @@ function toMenu(){
   if(!audio.src||GS.needSong){GS.needSong=false;playSong(GS.songSel);}
 }
 function startGame(mode){
+  if(GS.state==='starting')return;
+  GS.state='starting';
+  const cur=GS.cur?$(GS.cur):null;
+  fadeEl.style.transition='opacity .9s ease-in';fadeEl.style.opacity=1;
+  if(cur){cur.style.transition='opacity .7s';cur.style.opacity='0';}
+  try{if(audio.master){const g=audio.master.gain,t=audio.ctx.currentTime;g.cancelScheduledValues(t);g.setValueAtTime(g.value,t);g.linearRampToValueAtTime(0,t+.85);}}catch(_){}
+  setTimeout(()=>{if(cur){cur.style.opacity='';cur.style.transition='';}startGameNow(mode);},950);
+}
+function startGameNow(mode){
   GS.mode=mode;score=0;gateCount=0;fragGot=0;fragTotal=0;
   frags.length=0;bolts.length=0;debris.length=0;pc=0;gateHP.clear();gateGone.clear();soulGone.clear();soulRise.clear();gatePassed.clear();shocks.length=0;
   GS.timeLeft=300;GS.state='play';paused=false;setTimeout(pcLock,0);
-  fadeEl.style.transition='none';fadeEl.style.opacity=0;
   held.L=held.R=false;setPan();lookYaw=lookPitch=0;
   setMaster(1,1);showScr(null);setBody('play');
   if(audio.ctx.state!=='running')audio.ctx.resume();
-  if(audio.buffer)startPlayback(0);
+  try{audio.src&&audio.src.stop();}catch(_){}GS.needSong=true;
+  mana=1;manaLock=false;manaOn=true;GS.outro=false;GS.intro=4;ledgeMode=1;ledgeT=0;introHold=true;liveK=-1e9;liveSeg.t0=-1e9;
+  fadeEl.style.transition='none';fadeEl.style.opacity=1;void fadeEl.offsetWidth;fadeEl.style.transition='opacity 1.8s ease-out';fadeEl.style.opacity=0;
 }
 function doPause(){
   if(GS.state!=='play')return;
@@ -1755,9 +1788,16 @@ function botUpdate(dt){
 }
 function gameTick(dt){
   const st=GS.state;
+  if(st!=='play'&&st!=='pause'&&st!=='starting'){ledgeMode=0;introHold=false;manaOn=false;}
   if(st==='play'){
-    if(!paused&&GS.mode==='arcade'){
+    if(!paused){
+      ledgeT+=dt;if(ledgeMode===2&&ledgeT>5.5)ledgeMode=0;if(ledgeMode===3&&ledgeT>5.5)ledgeMode=1;
+      if(GS.intro>0){GS.intro-=dt;if(GS.intro<=0){GS.intro=0;introHold=false;ledgeMode=2;ledgeT=0;if(audio.buffer)startPlayback(0);}}
+      if(U.time-manaTouch>.2)mana=Math.min(1,mana+dt*.4);if(manaLock&&mana>=.25)manaLock=false;
+    }
+    if(!paused&&GS.mode==='arcade'&&GS.intro<=0){
       GS.timeLeft-=dt;
+      if(GS.timeLeft<=10&&!GS.outro){GS.outro=true;ledgeMode=3;ledgeT=0;}
       if(GS.timeLeft<=6&&GS.timeLeft>0){const k=cl(GS.timeLeft/6);fadeEl.style.transition='none';fadeEl.style.opacity=1-k;setMaster(k,k);}
       if(GS.timeLeft<=0)endArcade();
     }
@@ -1871,6 +1911,7 @@ function frame(now){
   buildObjects();
   updateParticles(dt);
   draw();
+  $('manaF').style.width=(mana*100)+'%';$('mana').classList.toggle('lock',manaLock);
   hudT+=dt;
   if(hudT>.2){
     hudT=0;
