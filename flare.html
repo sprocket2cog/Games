@@ -224,7 +224,8 @@ canvas{position:fixed;left:0;top:0;width:100%;height:100%;display:block}
 #eqPick{overflow-x:hidden!important;box-sizing:border-box;max-width:100vw}
 #eqList{width:min(840px,86vw)!important;box-sizing:border-box}
 #nvBtn,#xrBtn,#trkBtn,#comBtn,#p76Btn{width:80px!important;height:20px!important;font-size:8px!important;letter-spacing:.5px!important;border-radius:10px!important;border-width:1px!important;white-space:nowrap}
-#nvBtn{top:118px!important}#xrBtn{top:142px!important}#trkBtn{top:166px!important}#comBtn{top:190px!important}#p76Btn{top:214px!important}
+#scopeRow{position:fixed;left:0;right:0;bottom:max(8px,env(safe-area-inset-bottom));display:flex;justify-content:center;align-items:center;gap:8px;pointer-events:none;z-index:30}
+#scopeRow>button{position:static!important;left:auto!important;top:auto!important;right:auto!important;bottom:auto!important;margin:0!important;width:86px!important;height:24px!important;font-size:9px!important;pointer-events:auto}
 #trkBtn{display:none;position:absolute;left:max(12px,env(safe-area-inset-left));border:1px solid #ff9a1a;background:rgba(16,9,2,.6);color:#ffd24a;font:inherit;padding:0;pointer-events:auto;box-shadow:0 0 12px #ff8a1a44}
 #trkBtn.cd{opacity:.45;box-shadow:none}#trkBtn.act{background:rgba(160,80,10,.55);box-shadow:0 0 18px #ffb23a99}
 @media (max-height:520px){
@@ -5446,7 +5447,7 @@ function newGame(){
   initTerrain();genNetwork();buildWorld();CROW.place();
   var sn=nodes[startNode];player.x=sn.x;player.z=sn.z;
   var nb=nodes[sn.adj[0]];player.yaw=Math.atan2(-(nb.x-sn.x),-(nb.z-sn.z));player.pitch=0;
-  DRONE.cd=3;DRONE.age=99;DRONE.R=0;FPGEN++;fpReset();TRK.on=false;TRK.cd=0;TRK.a=0;G.over=false;G.t=0;G.total=270+[0,30,60,120][UP.mask|0];G.rescued=0;G.lost=0;G.kills=0;G.hp=3;G.inv=0;G.counts={r:4+(UP.pack>=1?1:0),g:4+(UP.pack>=2?1:0),w:3+(UP.pack>=3?1:0),v:5,p:1};CHUTE.on=false;G.windA=Math.random()*TAU;G.windS=1.1+Math.random()*.8;NVS.on=false;NVS.t=0;NVS.cd=0;P76.on=false;P76.t=0;P76.cd=0;P76.a=0;XRS.on=false;XRS.t=0;XRS.cd=0;XRS.a=0;COM.on=false;COM.t=0;COM.cd=0;COM.a=0;xrHumStop();
+  DRONE.cd=3;DRONE.age=99;DRONE.R=0;FPGEN++;try{GOG.warm();}catch(_w){}fpReset();TRK.on=false;TRK.cd=0;TRK.a=0;G.over=false;G.t=0;G.total=270+[0,30,60,120][UP.mask|0];G.rescued=0;G.lost=0;G.kills=0;G.hp=3;G.inv=0;G.counts={r:4+(UP.pack>=1?1:0),g:4+(UP.pack>=2?1:0),w:3+(UP.pack>=3?1:0),v:5,p:1};CHUTE.on=false;G.windA=Math.random()*TAU;G.windS=1.1+Math.random()*.8;NVS.on=false;NVS.t=0;NVS.cd=0;P76.on=false;P76.t=0;P76.cd=0;P76.a=0;XRS.on=false;XRS.t=0;XRS.cd=0;XRS.a=0;COM.on=false;COM.t=0;COM.cd=0;COM.a=0;xrHumStop();
   var used=[{x:sn.x,z:sn.z}];
   /* weighted spawns: early levels keep survivors nearer and shades further out; as levels rise survivors move out and shades move in */
   var sd=nodes.map(function(n){return Math.hypot(n.x-sn.x,n.z-sn.z);}).filter(function(d){return d>12;}).sort(function(p,q){return p-q;});
@@ -6509,10 +6510,13 @@ var GOG=(function(){
   function maskFor(s){
     var c=caches['m'+s];if(c)return c;c=caches['m'+s]=mkc();var K=GOGCFG[s],p=c.getContext('2d');
     if(K.mkShape==='NONE'||K.mkOp<=0)return c;
-    p.globalAlpha=K.mkOp;p.fillStyle=K.mkCol;p.fillRect(0,0,OW,OH);p.globalAlpha=1;
-    p.globalCompositeOperation='destination-out';p.shadowColor='#000';p.shadowBlur=K.mkBlur;p.shadowOffsetX=OW*3;p.fillStyle='#000';
-    shapePath(p,K,-OW*3);p.fill();return c;
+    var q=4,sw=Math.ceil(OW/q),sh=Math.ceil(OH/q),m=document.createElement('canvas');m.width=sw;m.height=sh;var mp=m.getContext('2d');
+    mp.globalAlpha=K.mkOp;mp.fillStyle=K.mkCol;mp.fillRect(0,0,sw,sh);mp.globalAlpha=1;
+    mp.globalCompositeOperation='destination-out';mp.shadowColor='#000';mp.shadowBlur=K.mkBlur/q;mp.shadowOffsetX=sw*3;mp.fillStyle='#000';
+    mp.save();mp.scale(1/q,1/q);shapePath(mp,K,-OW*3);mp.fill();mp.restore();
+    p.imageSmoothingEnabled=true;p.imageSmoothingQuality='high';p.drawImage(m,0,0,OW,OH);return c;
   }
+  function warm(){if(!cv)init();size();for(var k in GOGCFG){try{maskFor(k);scanFor(k);caches['m'+k].getContext('2d').getImageData(0,0,1,1);caches['s'+k].getContext('2d').getImageData(0,0,1,1);}catch(e){}}}
   function scanFor(s){
     var c=caches['s'+s];if(c)return c;c=caches['s'+s]=mkc();var K=GOGCFG[s],p=c.getContext('2d');
     var per=OH/Math.max(40,K.scanCnt/ (540/OH)),n=Math.ceil(OH/per);
@@ -6629,7 +6633,7 @@ var GOG=(function(){
     g.drawImage(maskFor(s),0,0);
     drawHUD(K,s,T);drawBoxes(K,s,T);cross(K,s,T);
   }
-  return {draw:draw,start:start,collect:collect,get a(){return a;},cfg:GOGCFG};
+  return {draw:draw,start:start,warm:warm,collect:collect,get a(){return a;},cfg:GOGCFG};
 })();
 
 /* ================= X-RAY SPECS ================= */
@@ -8634,6 +8638,7 @@ addEventListener('resize',fitLogo);addEventListener('orientationchange',function
 $('shopBtn').addEventListener('click',function(){$('end').style.display='none';$('start').style.display='flex';$('startBtn').textContent='BACK';
   try{stopFlareVoices();flares.length=0;sparks.length=0;if(AC&&AC.state==='suspended')AC.resume();}catch(_){}MUS.play('lobby',4);
   setShop(true);});
+(function(){var r=document.createElement('div');r.id='scopeRow';document.getElementById('hud').appendChild(r);['nvBtn','xrBtn','trkBtn','comBtn','p76Btn'].forEach(function(i){var e=$(i);if(e)r.appendChild(e);});})();
 $('xrBtn').addEventListener('pointerdown',function(e){e.preventDefault();e.stopPropagation();xrStart();});
 $('trkBtn').addEventListener('pointerdown',function(e){e.preventDefault();e.stopPropagation();trkStart();});
 $('comBtn').addEventListener('pointerdown',function(e){e.preventDefault();e.stopPropagation();comStart();});
@@ -8761,7 +8766,7 @@ function playIntro(onReveal){
   var ok=function(b){INTRO_BUF=b;INTRO_DEC=0;if(isFinite(b.duration)&&b.duration>10)DUR=b.duration;},bad=function(e){INTRO_DEC=0;INTRO_ERR=String(e&&e.message||e||'decode');};
   try{var p=ctx.decodeAudioData(introAB(),ok,bad);if(p&&p.catch)p.catch(bad);}catch(e){bad(e);}
  }
- ensure();load();
+ ensure();load();setTimeout(function(){try{GOG.warm();}catch(e){}},400);
  var failT=performance.now();
  function now(){
   var pt=(performance.now()-tTap)/1000;
